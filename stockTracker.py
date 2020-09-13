@@ -70,7 +70,8 @@ while True:
                                body="Price increased above ${:.2f}! Time to sell your shares of {}!".format(highPrice, tickerSymbol))
         break
     else:
-        print('Continuing to monitor {} prices...'.format(tickerSymbol))
+        print('Current price: ${}.  Continuing to monitor {} prices...'.format(
+            price, tickerSymbol))
     time.sleep(30)
 
 # Shut down driver
