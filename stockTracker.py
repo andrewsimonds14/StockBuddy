@@ -4,40 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
 from twilio.rest import Client
-
-# Change prices here for what you wanna watch for
-highPrice = float(8.75)
-lowPrice = float(8)
-
-# Change which stock symbol you want to monitor
-tickerSymbol = 'CGX'
-
-# Get Twilio Info
-infoFile = open('twilioInfo.txt', 'r')
-info = infoFile.readlines()
-# Parse info from text file into usable variables
-# UserID info from Twilio; Format in file -> Account Number: ###########
-userID = (info[0].split(': ', 1))[1]
-# Token from twilio; Format in file -> Account Token: ###########
-authToken = (info[1].split(': ', 1))[1]
-# Twilio Phone Number; Format in file -> Twilio Number: +##########
-twilioNumber = (info[2].split(': ', 1))[1]
-# User Phone Number; Format in file -> My Number: +##########
-myNumber = (info[3].split(': ', 1))[1]
-
-# Initialize Twilio Client
-client = Client(userID, authToken)
-
-# Initialize selenium settings
-DRIVER_PATH = 'C:/webdrivers/chromedriver.exe'
-
-options = Options()
-options.headless = True
-options.add_argument("--window-size=1920,1200")
-
-# Start webpage
-driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
-driver.get('https://money.tmx.com/en/quote/{}'.format(tickerSymbol))
+import os.path
 
 
 def getPrice():
@@ -54,20 +21,108 @@ def getPrice():
         print('Error getting price')
 
 
+def buyOrSell():
+    print("Are you monitoring to BUY or SELL: ")
+    for idx, element in enumerate(['BUY', 'SELL']):
+        print('{}) {}'.format(idx+1, element))
+    i = input('Enter Number: ')
+    try:
+        if i == '1':
+            return 'BUY'
+        elif i == '2':
+            return 'SELL'
+        else:
+            return 'ERROR'
+    except:
+        print('Error: Invalid Option')
+        return None
+
+
+def changeTicker():
+    print("If you wish to change the ticker symbol to watch, type it below")
+    print("Otherwise, press ENTER")
+    i = input('Enter Ticker Symbol: ')
+    if i == '':
+        pass
+    else:
+        global tickerSymbol
+        tickerSymbol = i
+        os.remove('twilioInfo.txt')
+        infoFile = open('twilioInfo.txt', 'a')
+        writeInfo = (
+            'Account Number: {}Account Token: {}Twilio Number: {}My Number: {}Ticker Symbol: {}'.format(userID, authToken, twilioNumber, myNumber, tickerSymbol))
+        infoFile.write(writeInfo)
+        infoFile.close()
+
+
+# Initialize some information values
+if (os.path.isfile('./twilioInfo.txt')):
+    # Get Twilio Info
+    infoFile = open('twilioInfo.txt', 'r')
+    info = infoFile.readlines()
+    # Parse info from text file into usable variables
+    # UserID info from Twilio; Format in file -> Account Number: ###########
+    userID = (info[0].split(': ', 1))[1]
+    # Token from twilio; Format in file -> Account Token: ###########
+    authToken = (info[1].split(': ', 1))[1]
+    # Twilio Phone Number; Format in file -> Twilio Number: +##########
+    twilioNumber = (info[2].split(': ', 1))[1]
+    # User Phone Number; Format in file -> My Number: +##########
+    myNumber = (info[3].split(': ', 1))[1]
+    # Ticker Symbol being watched
+    tickerSymbol = (info[4].split(': ', 1))[1]
+    infoFile.close()
+else:
+    infoFile = open('twilioInfo.txt', 'a')
+    userID = input('Enter Twilio user ID: ')
+    authToken = input('Enter Twilio authentication token: ')
+    twilioNumber = input('Enter Twilio Phone number: ')
+    myNumber = input('Enter your phone number: ')
+    tickerSymbol = input('Enter Ticker Symbol to watch: ')
+    writeInfo = (
+        'Account Number: {}\nAccount Token: {}\nTwilio Number: {}\nMy Number: {}\nTicker Symbol: {}'.format(userID, authToken, twilioNumber, myNumber, tickerSymbol))
+    infoFile.write(writeInfo)
+    infoFile.close()
+
+# Change stock to watch?
+print('Currently watching prices of {}...'.format(tickerSymbol))
+changeTicker()
+# Choose if waiting to buy or sell
+buyingOrSelling = buyOrSell()
+# Set price to watch for
+priceToWatchFor = float(input('Price to watch for?: '))
+
+# Initialize Twilio Client
+client = Client(userID, authToken)
+
+# Initialize selenium settings
+DRIVER_PATH = 'C:/webdrivers/chromedriver.exe'
+
+options = Options()
+options.headless = True
+options.add_argument("--window-size=1920,1200")
+options.add_argument("--log-level=3")  # Supress warning logs for visibility
+
+# Start webpage
+driver = webdriver.Chrome(
+    options=options, executable_path=DRIVER_PATH)
+driver.get('https://money.tmx.com/en/quote/{}'.format(tickerSymbol))
+
+
 # Check for new price twice every minute
 while True:
     price = getPrice()
     # Wait for price drop to notify a buy
-    if(price < lowPrice):
+    if(price < priceToWatchFor and buyingOrSelling == 'BUY'):
         print('Sending text to buy')
         client.messages.create(to=myNumber, from_=twilioNumber,
-                               body="Price dropped below ${:.2f}! Time to buy some shares of {}!".format(lowPrice, tickerSymbol))
+                               body="Price dropped below ${:.2f}! Time to buy some shares of {}!".format(priceToWatchFor, tickerSymbol))
         break
     # Wait for price increase to notify a sell
-    elif(price > highPrice):
+    elif(price > priceToWatchFor and buyingOrSelling == 'SELL'):
         print('Sending text to sell')
         client.messages.create(to=myNumber, from_=twilioNumber,
-                               body="Price increased above ${:.2f}! Time to sell your shares of {}!".format(highPrice, tickerSymbol))
+                               body="Price increased above ${:.2f}! Time to sell your shares of {}!".format(priceToWatchFor, tickerSymbol))
         break
     else:
         print('Current price: ${}.  Continuing to monitor {} prices...'.format(
