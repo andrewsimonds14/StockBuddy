@@ -130,7 +130,7 @@ while True:
         break
     else:
         # price = chalk.green("$" + price)
-        print(chalk.magenta('Current price: ') + chalk.green('$' + str(price)) + chalk.magenta(
+        print(chalk.magenta('Current price: ') + chalk.green.bold('$' + str(price)) + chalk.magenta(
             ' Continuing to monitor ') + chalk.magenta.bold(tickerSymbol) + chalk.magenta(' prices...'))
 
     time.sleep(30)
