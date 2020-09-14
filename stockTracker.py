@@ -5,25 +5,27 @@ from selenium.webdriver.chrome.options import Options
 import time
 from twilio.rest import Client
 import os.path
+from simple_chalk import chalk
 
 
-def getPrice():
+def getPrice(prevPrice):
     # Grab updated price
     driver.refresh()
     try:
         time.sleep(3)
         # Find price using xpath
-        price = driver.find_element_by_xpath(
+        newPrice = driver.find_element_by_xpath(
             '/html/body/div[1]/div[3]/div[1]/div/div[1]/div/div[2]/div[1]/span').text
-        price = float(price[1:])
-        return price
+        newPrice = float(newPrice[1:])
+        return round(newPrice, 2)
     except:
-        print('Error getting price')
+        print('Error getting price, returning previous price...')
+        return prevPrice
 
 
 def buyOrSell():
-    print("Are you monitoring to BUY or SELL: ")
-    for idx, element in enumerate(['BUY', 'SELL']):
+    print("\nAre you monitoring to BUY or SELL: ")
+    for idx, element in enumerate([chalk.green('BUY'), chalk.green('SELL')]):
         print('{}) {}'.format(idx+1, element))
     i = input('Enter Number: ')
     try:
@@ -40,8 +42,8 @@ def buyOrSell():
 
 def changeTicker():
     print("If you wish to change the ticker symbol to watch, type it below")
-    print("Otherwise, press ENTER")
-    i = input('Enter Ticker Symbol: ')
+    print("Otherwise, press " + chalk.green.bold("ENTER"))
+    i = input(chalk.green('Enter Ticker Symbol: '))
     if i == '':
         pass
     else:
@@ -85,12 +87,13 @@ else:
     infoFile.close()
 
 # Change stock to watch?
-print('Currently watching prices of {}...'.format(tickerSymbol))
+print('\nCurrently watching prices of {}...'.format(chalk.green(tickerSymbol)))
 changeTicker()
 # Choose if waiting to buy or sell
 buyingOrSelling = buyOrSell()
 # Set price to watch for
-priceToWatchFor = float(input('Price to watch for?: '))
+lowPrice = float(input(chalk.red('\nLow price to watch for?: ')))
+highPrice = float(input(chalk.green('High price to watch for?: ')))
 
 # Initialize Twilio Client
 client = Client(userID, authToken)
@@ -108,26 +111,30 @@ driver = webdriver.Chrome(
     options=options, executable_path=DRIVER_PATH)
 driver.get('https://money.tmx.com/en/quote/{}'.format(tickerSymbol))
 
+# Instantiate first watch price
+price = getPrice(None)
 
 # Check for new price twice every minute
 while True:
-    price = getPrice()
-    # Wait for price drop to notify a buy
-    if(price < priceToWatchFor and buyingOrSelling == 'BUY'):
-        print('Sending text to buy')
+    # Wait for price drop
+    if(price < lowPrice):
+        print(chalk.green.bold('Sending text to ' + buyingOrSelling))
         client.messages.create(to=myNumber, from_=twilioNumber,
-                               body="Price dropped below ${:.2f}! Time to buy some shares of {}!".format(priceToWatchFor, tickerSymbol))
+                               body="Price dropped below ${:.2f}! Time to {} some shares of {}!".format(lowPrice, buyingOrSelling, tickerSymbol))
         break
-    # Wait for price increase to notify a sell
-    elif(price > priceToWatchFor and buyingOrSelling == 'SELL'):
-        print('Sending text to sell')
+    # Wait for price increase
+    elif(price > highPrice):
+        print(chalk.green.bold('Sending text to ' + buyingOrSelling))
         client.messages.create(to=myNumber, from_=twilioNumber,
-                               body="Price increased above ${:.2f}! Time to sell your shares of {}!".format(priceToWatchFor, tickerSymbol))
+                               body="Price increased above ${:.2f}! Time to {} your shares of {}!".format(highPrice, buyingOrSelling, tickerSymbol))
         break
     else:
-        print('Current price: ${}.  Continuing to monitor {} prices...'.format(
-            price, tickerSymbol))
+        # price = chalk.green("$" + price)
+        print(chalk.magenta('Current price: ') + chalk.green('$' + str(price)) + chalk.magenta(
+            ' Continuing to monitor ') + chalk.magenta.bold(tickerSymbol) + chalk.magenta(' prices...'))
+
     time.sleep(30)
+    price = getPrice(price)
 
 # Shut down driver
 driver.quit()
